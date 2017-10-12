@@ -1,0 +1,2 @@
+#!/usr/bin/env bash
+exec docker run --rm --name adoc -it -v "$PWD":/documents my/asciidoc "$@"

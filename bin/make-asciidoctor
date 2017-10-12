@@ -1,0 +1,6 @@
+#/usr/bin/env bash
+## TODO: mount volume
+
+here="$PWD"
+
+exec docker run --rm -v "$here":/documents my/asciidoc make-asciidoc "$@"

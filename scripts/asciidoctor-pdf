@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+exts=( "/config/asciidoctor/extensions" "/config/asciidoctor-pdf/extensions" "/usr/local/lib/asciidoctor/extensions" "/usr/local/lib/asciidoctor-pdf/extensions" )
+
+ARGS=()
+while (($#)); do
+    case $1 in
+        -r|--require)
+            e=$2; shift
+            for ext in ${exts[@]}; do
+                lib=$(readlink -f "$ext/${e%.rb}.rb")
+                [[ -f "$lib" ]] && break
+            done
+            [[ ! -f "$lib" ]] && lib=$e
+            ARGS+=( "-r" "$lib" )
+            ;;
+        *) ARGS+=( "$1" );;
+    esac
+    shift
+done
+set -- ${ARGS[@]}
+exec /usr/local/asciidoctor-pdf/bin/asciidoctor-pdf "$@"

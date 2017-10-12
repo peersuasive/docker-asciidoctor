@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+me=$(readlink -f "$0")
+exe=$(which -a asciidoctor | grep -v "$me" | head -n1)
+
+[[ -z "$exe" ]] && echo "asciidoctor not found in PATH" && exit 1
+
+exts=( "/config/asciidoctor/extensions" "/usr/local/lib/asciidoctor/extensions" )
+
+has_ext=0
+for ext in ${exts[@]}; do
+    [[ -d "$ext" ]] && has_ext=1 && break
+done
+if ((!has_ext)); then
+    exec $exe "$@"
+else
+    ARGS=()
+    while (($#)); do
+        case $1 in
+            -r|--require)
+                e=$2; shift
+                for ext in ${exts[@]}; do
+                    lib=$(readlink -f "$ext/${e%.rb}.rb")
+                    [[ -f "$lib" ]] && break
+                done
+                [[ ! -f "$lib" ]] && lib=$e
+                ARGS+=( "-r" "$lib" )
+                ;;
+            *) ARGS+=( "$1" );;
+        esac
+        shift
+    done
+    set -- ${ARGS[@]}
+    exec $exe "$@"
+fi

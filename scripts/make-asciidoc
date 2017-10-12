@@ -1,0 +1,227 @@
+#!/usr/bin/env bash
+
+default_format=pdf
+with_hyphen=1
+DEBUG=0
+ECHO=
+_c_v() {
+    [[ -z "$1" ]] && { echo -n no; return 0; } \
+        || (($1 <= 0)) && echo -n no || echo -n yes
+}
+_help() {
+    cat<<EOH
+Usage: ${0##*/} [OPTIONS] [--] <input.adoc>
+Options:
+    -h|--help               this message
+    -e|--env <env>          environment: dev, rc, prod
+    -t|--template <file>    render only the specified file
+    -s|--style <file>       use the provided style file
+    -f|--format <format>    output format (default: $default_format)
+    -H|--with-hyphenation   enable hyphenation (default: $(_c_v $with_hyphen))
+    -Z|--no-hyphenation     disable hyphenation
+    --level                 try to guess title at which the excerpt is starting
+    --headers <file>        specify a header file to include
+    --footers <file>        specify a footer file to include
+    --common <file>         specify a common file to include
+    --biblio <file>         specify a biblio file to include
+    --lexicon <file>        specify a lexicon file to include
+    --appendix <file>       specify an appendix file to include
+    --notes <file>          specify a notes file to include (only visible in dev env)
+    --debug                 print debug traces
+    --debug2                print (more) debug traces
+EOH
+}
+
+tmpl=
+mktmp() {
+    local t=$(mktemp -u)
+    tmpl=.$(basename "$t")
+}
+
+adjust_level=0
+with_template=
+has_biblio=
+has_common=
+has_lexicon=
+has_appendix=
+has_notes=
+has_style=
+EOO=0
+ARGS=()
+while (($#)); do
+    if ((EOO)); then
+        ARGS+=( "$1" )
+        continue
+    fi
+    case "$1" in
+        --) EOO=1;;
+        -h|--help) _help; exit 0;;
+        --level) adjust_level=1;;
+        -e|--env) ENV=$2; shift;;
+        -t|--template) with_template="$2";shift
+            mktmp; ARGS+=( "$tmpl" )
+            ;;
+        -s|--style) has_style="$2"; shift;;
+        -f|--format) output_format="$2"; shift;;
+        -H|--with-hyphenation) with_hyphen=1;;
+        -Z|--no-hyphenation) unset with_hyphen;;
+        --headers) has_headers="$2"; shift;;
+        --footers) has_footers="$2"; shift;;
+        --common) has_common="$2"; shift;;
+        --biblio) has_biblio="$2"; shift;;
+        --lexicon) has_lexicon="$2"; shift;;
+        --appendix) has_appendix="$2"; shift;;
+        --notes) has_notes="$2"; shift;;
+        --debug) DEBUG=1;;
+        #--debug2) DEBUG=2;;
+        --debug[0-9]*) DEBUG=${1#--debug};;
+        *) ARGS+=( "$1" );;
+    esac
+shift
+
+done
+set -- "${ARGS[@]}"
+
+((DEBUG>1)) && set -x
+
+#version=${version:-v0.0.draft.$(date +"%d-%m-%Y.%H:%M:%S.%Z")};;
+ENV=${ENV:-prod}
+
+if [[ -z "$version" ]]; then
+case "$ENV" in
+    dev) version="v0.0.draft.$(date +"%d-%m-%Y.%H:%M:%S.%Z")"; dev=1;;
+    rc*) version="v0.9-${ENV^^}";;
+    prod) version="v1.0";;
+    *) version="ukn";;
+esac
+fi
+
+matches=
+find_file() {
+    local raw
+    [[ "$1" == -r ]] && raw=1 && shift
+    local reg
+    ((raw)) && reg="$1" || reg=".*/[0-9iIvVxXcC]*[.]*${1}\.adoc"
+    ((DEBUG)) && echo "reg: $reg (raw: $raw)" >&2
+    local files
+    files=( "$(find . -maxdepth 1 -type f -regextype egrep -regex "${reg}" -not -size 0)" )
+    declare -A m
+    matches=()
+    for f in ${files[@]}; do
+        r="$(readlink -f "$f")"
+        [[ -n "${m["$r"]}" ]] && continue
+        m["$f"]="$f"
+        inod=$(\stat -c"%i" "$f")
+        [[ -n "${m[$inod]}" ]] && continue
+        m[$inod]="$f"
+        matches+=( "$f" )
+    done
+    local max=${#matches[@]}
+    ((max>1)) && echo "Warning: many matching possibilities found for common." && return 1
+    echo "${matches[@]}"
+}
+
+## look for commonly included files
+# common
+#commons=$(find . -maxdepth 1 -type f -regextype sed -regex ".*/[0-9]*[.]*[Cc][Oo][Mm][Mm][Oo][Nn][^.]*\.adoc" -not -size 0)
+if [[ -z "$has_common" ]]; then
+    has_common=$(find_file "[Cc][Oo][Mm][Mm][UuOo][Nn]")
+fi
+if [[ -z "$has_lexicon" ]]; then
+    has_lexicon=$(find_file "[Ll][Ee][Xx][Ii]([Cc][Oo][Nn]|[Qq][Uu][Ee])")
+fi
+if [[ -z "$has_biblio" ]]; then
+    has_biblio=$(find_file "[Bb][Ii][Bb][Ll][Ii][Oo][^.]*")
+fi
+if [[ -z "$has_appendix" ]]; then
+    has_appendix=$(find_file "[Aa]([Pp][Pp][Ee][Nn][Dd][Ii][XxCc]|[Nn][Nn][Ee][Xx])[Ee]*[Ss]*")
+fi
+if [[ -z "$has_notes" ]]; then
+    has_notes=$(find_file "([Nn][Oo][Tt][Ee]|[Tt][Oo][Dd][Oo])[Ss]*")
+fi
+if [[ -z "$has_headers" ]]; then
+    has_headers=$(find_file "[Hh][Ee][Aa][Dd][Ee][Rr][Ss]")
+fi
+if [[ -z "$has_footers" ]]; then
+    has_footers=$(find_file "[Ff][Oo][Oo][Tt][Ee][Rr][Ss]")
+fi
+if [[ -z "$has_style" ]]; then
+    has_style=$(find_file -r ".*/.+[-]theme[.]yml$")
+    if [[ -n "$has_style" ]]; then
+        has_style=${has_style##*/}
+        has_style=${has_style%-*}
+        style_dir=.
+    fi
+else
+    style_dir=$(readlink -f `dirname "${has_style}"`)
+    has_style=${has_style##*/}; has_style=${has_style%-}
+fi
+
+if ((DEBUG)); then
+ECHO="echo would run:"
+echo "ENV: $ENV"
+echo "common: $has_common"
+echo "lexicon: $has_lexicon"
+echo "biblio: $has_biblio"
+echo "appendix: $has_appendix"
+echo "notes: $has_notes"
+echo "headers: $has_headers"
+echo "footers: $has_footers"
+echo "style: $has_style ($style_dir)"
+fi
+
+if [[ -n "$with_template" ]]; then
+    cat <<'EOT' >> "$tmpl"
+= WIP
+:notitle:
+:doctype: article
+:experimental: true
+:source-highlighter: rouge
+:listing-caption: Listing
+:pdf-page-size: A4
+:pdf-stylesdir: .
+:pdf-style: local
+:icons: font
+:icon-set: fa
+:sectnums:
+:sectnumlevels: 2
+:lang: fr
+:sectnums!:
+EOT
+    echo >> "$tmpl"
+    #[[ -f "common.adoc" ]] && echo "include::common.adoc[]" >> "$tmpl"
+    #[[ -f "0.common.adoc" ]] && echo "include::0.common.adoc[]" >> "$tmpl"
+    if [[ -n "$has_common" ]]; then echo "include::${has_common}[]" >> "$tmpl"; fi
+    if ((adjust_level)); then
+        if lev=$(grep -ohm1 '^\([=]\+\)\ ' $with_template); then
+            lev=$(( ${#lev} -1 -1)); ((lev<0)) && lev=0
+            imax=1
+            while ((lev)); do
+                ((++imax))
+                for ((i=0;i<imax;++i)); do
+                    echo -n "=" >> "$tmpl"
+                done
+                echo " {nbsp}" >> "$tmpl"
+                ((--lev))
+            done
+        fi
+    fi
+    echo "include::${with_template}[]" >> "$tmpl"
+fi
+[[ "$output_format" == pdf ]] && cmd=asciidoctor-pdf || cmd=asciidoctor
+log=$($ECHO ${cmd} \
+    -r asciidoctor-diagram ${ENV:+-a env=$ENV}@ \
+        -a pdf-stylesdir=/config/asciidoctor-pdf/themes@ \
+        -a pdf-fontsdir=/config/asciidoctor-pdf/fonts@ \
+        -a version=${version}@ ${with_template:+ -q} \
+        ${has_biblio:+-a has_biblio="$has_biblio"} ${has_appendix:+-a has_appendix="$has_appendix"} ${has_notes:+-a has_notes="$has_notes"} ${has_common:+-a has_common="$has_common"} ${has_lexicon:+-a has_lexicon="$has_lexicon"} ${has_headers:+-a has_headers="$has_headers"} ${has_footers:+-a has_footers="$has_footers"} ${has_style:+-a has_style="$has_style"} ${style_dir:+-a style_dir="$style_dir"} ${with_hyphen:+-r hyphenation} \
+        -b ${output_format:-$default_format} "$@" 2>&1 | grep -E -v '[0-9]: warning: (previous|already)')
+((DEBUG)) && {
+    echo $log
+    echo "(aborting due to DEBUG mode)"
+    exit 0
+}
+r=$?
+((r)) && [[ -z "$log" ]] && r=0
+\rm -f "$tmpl"
+exit $r
