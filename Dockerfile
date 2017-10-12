@@ -27,8 +27,7 @@ COPY scripts/asciidoctor /usr/local/bin/
 COPY scripts/make-asciidoc /usr/local/bin/
 COPY extensions/hyphenation.rb /usr/local/lib/asciidoctor/extensions
 
-VOLUME /config/asciidoctor
-VOLUME /config/asciidoctor-pdf
+VOLUME /config
 
 WORKDIR /documents
 VOLUME /documents

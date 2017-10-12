@@ -1,5 +1,24 @@
-#/usr/bin/env bash
-here="$PWD"
+#!/usr/bin/env bash
+
+here=$(readlink -f "$PWD")
 uid=`id -u $USER`
 gid=`id -g $USER`
-exec docker run --rm -e LOCAL_USER_ID=$uid -e LOCAL_GROUP_ID=$gid -v "$here":/documents my/asciidoc make-asciidoc "$@"
+
+ARGS=()
+while (($#)); do
+    case "$1" in
+        --config-dir) config_dir=$(readlink -f "$2"); shift
+            ! [[ -d "$config_dir" ]] && \
+                echo "Ignoring non existing config directory '$2'" && \
+                unset config_dir
+            ;;
+        *) ARGS+=( "$1" );;
+    esac
+    shift
+done
+set -- "${ARGS[@]}"
+
+exec docker run --rm \
+    -e LOCAL_USER_ID=$uid -e LOCAL_GROUP_ID=$gid \
+    -v "$here":/documents  \
+    ${config_dir:+-v "$config_dir":/config:ro} my/asciidoc make-asciidoc "$@"
