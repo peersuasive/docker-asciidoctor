@@ -4,7 +4,7 @@ exe=$(which -a asciidoctor | grep -v "$me" | head -n1)
 
 [[ -z "$exe" ]] && echo "asciidoctor not found in PATH" && exit 1
 
-exts=( "/config/asciidoctor/extensions" "/usr/local/lib/asciidoctor/extensions" )
+exts=( "/config/asciidoctor/extensions" "/usr/local/lib/asciidoctor/extensions" "$HOME/.config/asciidoctor/extensions" )
 
 has_ext=0
 for ext in ${exts[@]}; do

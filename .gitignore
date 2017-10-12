@@ -1,4 +1,8 @@
 .*.sw*
 *~
+*.dis
+bin/*-dbg
 local/
 files/
+tests/*
+!tests/test.adoc

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-exts=( "/config/asciidoctor/extensions" "/config/asciidoctor-pdf/extensions" "/usr/local/lib/asciidoctor/extensions" "/usr/local/lib/asciidoctor-pdf/extensions" )
+exts=( "/config/asciidoctor/extensions" "/config/asciidoctor-pdf/extensions" "/usr/local/lib/asciidoctor/extensions" "/usr/local/lib/asciidoctor-pdf/extensions" "$HOME/.config/asciidoctor/extensions" "$HOME/.config/asciidoctor-pdf/extensions" )
 
 ARGS=()
 while (($#)); do

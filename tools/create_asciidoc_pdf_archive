@@ -2,7 +2,7 @@
 here=$( readlink -f "$PWD" )
 vcs=$VCS/texte/asciidoctor/asciidoctor-pdf
 pushd "$vcs" 1>/dev/null 2>/dev/null
-! [[ -d files ]] && mkdir files
+! [[ -d "$here/files" ]] && mkdir "$here/files"
 ref=$(git symbolic-ref --short -q HEAD)
 git archive --format tar.gz -o "$here/files/asciidoctor-pdf.${ref}.tar.gz" ${ref}
 popd 1>/dev/null 2>/dev/null
