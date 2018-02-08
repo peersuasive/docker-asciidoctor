@@ -15,7 +15,7 @@ RUN apk add --no-cache --update bash findutils ruby ruby-io-console ruby-bundler
         gem install --no-ri --no-rdoc asciidoctor-pdf --version $ADOC_PDF_VERSION && \
         gem install --no-ri --no-rdoc rouge && \
         gem install --no-ri --no-rdoc text-hyphen && \
-        gem uninstall asciidoctor-pdf && \
+        gem uninstall -x asciidoctor-pdf && \
         \
         apk del ruby-dev make gcc libc-dev
 
